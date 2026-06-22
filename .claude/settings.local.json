@@ -13,7 +13,14 @@
       "Bash(firebase --version)",
       "Bash(git init *)",
       "Bash(git add *)",
-      "Bash(git -c 'user.name=Jessica McCadden' -c user.email=jessica.mccadden@gmail.com commit -q -m 'Twister Town game + quick fixes + deploy configs *)"
+      "Bash(git -c 'user.name=Jessica McCadden' -c user.email=jessica.mccadden@gmail.com commit -q -m 'Twister Town game + quick fixes + deploy configs *)",
+      "Bash(git remote *)",
+      "Bash(git branch *)",
+      "Bash(git push *)",
+      "Bash(npx netlify *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://twister-town-jessreana.netlify.app)",
+      "Bash(curl -s https://twister-town-jessreana.netlify.app)",
+      "Bash(git -c 'user.name=Jessica McCadden' -c user.email=jessica.mccadden@gmail.com commit -q -m 'Speed up base pace and quicken ease-in \\(was too slow\\) *)"
     ]
   }
 }
