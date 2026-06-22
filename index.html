@@ -361,7 +361,7 @@
     g.town = t;
     g.pal = paletteFor(t.urban);
     g.target    = 280 + g.level * 55;                       // shorter early towns
-    g.baseSpeed = Math.min(2.6 + g.level * 0.28, 8.0);      // livelier pace, still ramps up
+    g.baseSpeed = Math.min(1.7 + g.level * 0.24, 7.0);      // the pre-slowdown pace (~1.9 in Town 1)
     g.gapW      = Math.max(260 - g.level * 9, 120);         // very wide gaps early
     g.rowSpace  = Math.max(270 - g.level * 10, 130);        // lots of breathing room early
     // note: g.speed is NOT snapped here — it eases toward baseSpeed (see update)
