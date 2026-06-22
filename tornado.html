@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Twister Town — Storm-Chaser Map</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    background: #11131c;
+    font-family: 'Roboto', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    overflow: hidden;
+    user-select: none; -webkit-user-select: none;
+    touch-action: none;
+  }
+  #wrap {
+    position: relative;
+    width: 100vw; height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+  }
+  canvas {
+    display: block;
+    background: #e9efe0;
+    box-shadow: 0 0 70px rgba(0,0,0,0.7);
+  }
+
+  /* ---------- HUD (map-app style cards) ---------- */
+  #hud {
+    position: absolute; top: 0; left: 0; width: 100%;
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    pointer-events: none;
+  }
+  .card {
+    background: rgba(255,255,255,0.95);
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+    padding: 8px 14px;
+    color: #3c4043;
+  }
+  .card .label { font-size: 10px; letter-spacing: 1.2px; color: #80868b; font-weight: 600; }
+  .card .val { font-size: 24px; font-weight: 700; line-height: 1.1; color: #202124; }
+  .card .val small { font-size: 13px; color: #80868b; font-weight: 600; }
+  .card.right { text-align: right; }
+
+  /* town + progress card, centered top */
+  #townInfo {
+    position: absolute; top: 12px; left: 50%;
+    transform: translateX(-50%);
+    width: 220px;
+    background: rgba(255,255,255,0.95);
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+    padding: 8px 12px 10px;
+    text-align: center;
+    pointer-events: none;
+  }
+  #townName { font-size: 15px; font-weight: 700; color: #202124; display: flex; align-items: center; justify-content: center; gap: 5px; }
+  #townLevel { font-size: 10px; letter-spacing: 1.2px; color: #80868b; font-weight: 600; margin-top: 1px; }
+  .progWrap {
+    margin: 7px auto 0; width: 190px; height: 8px;
+    background: #e3e6ea; border-radius: 6px; overflow: hidden;
+  }
+  #progFill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #34a853, #fbbc04);
+    border-radius: 6px; transition: width 0.15s linear;
+  }
+  #combo {
+    position: absolute; top: 96px; left: 50%;
+    transform: translateX(-50%);
+    background: #ea4335; color: #fff;
+    font-size: 15px; font-weight: 700;
+    padding: 4px 12px; border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    opacity: 0; transition: opacity 0.2s;
+    pointer-events: none;
+  }
+
+  /* ---------- Level banner ---------- */
+  #banner {
+    position: absolute; top: 40%; left: 50%;
+    transform: translate(-50%, -50%) scale(0.85);
+    text-align: center; pointer-events: none;
+    opacity: 0; transition: opacity 0.35s, transform 0.35s; z-index: 8;
+  }
+  #banner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  #banner .pill {
+    display: inline-block;
+    background: rgba(32,33,36,0.92);
+    color: #fff; border-radius: 16px;
+    padding: 16px 30px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+  }
+  #banner .small { font-size: 13px; letter-spacing: 2px; color: #34a853; font-weight: 700; }
+  #banner .big { font-size: clamp(28px, 7vw, 44px); font-weight: 800; margin: 4px 0; }
+  #banner .next { font-size: 13px; color: #bdc1c6; }
+
+  /* ---------- Overlays ---------- */
+  .screen {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; color: #fff;
+    background: radial-gradient(ellipse at center, rgba(17,19,28,0.84), rgba(17,19,28,0.96));
+    backdrop-filter: blur(2px); z-index: 10; padding: 24px;
+  }
+  .screen.hidden { display: none; }
+  .title {
+    font-size: clamp(34px, 8vw, 64px); font-weight: 800; letter-spacing: 1px;
+    color: #fff; text-shadow: 0 6px 20px rgba(0,0,0,0.5); margin-bottom: 6px;
+  }
+  .subtitle { font-size: 16px; color: #bdc1c6; margin-bottom: 22px; font-style: normal; max-width: 430px; }
+  .panel {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 16px; padding: 18px 26px; max-width: 450px;
+    margin-bottom: 24px; line-height: 1.7; font-size: 15px; color: #e8eaed;
+  }
+  .panel b { color: #fbbc04; }
+  .key {
+    display: inline-block; background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.25); border-radius: 6px;
+    padding: 1px 9px; font-size: 13px; font-weight: 700; margin: 0 1px;
+  }
+  .btn {
+    pointer-events: auto; cursor: pointer; border: none; border-radius: 50px;
+    padding: 15px 46px; font-size: 19px; font-weight: 700; font-family: inherit;
+    color: #fff; background: #1a73e8;
+    box-shadow: 0 4px 0 #1357b0, 0 8px 20px rgba(0,0,0,0.4);
+    transition: transform 0.08s, box-shadow 0.08s;
+  }
+  .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #1357b0, 0 4px 10px rgba(0,0,0,0.4); }
+  .btn.ghost {
+    background: transparent; color: #bdc1c6;
+    border: 1.5px solid rgba(255,255,255,0.3);
+    box-shadow: none; padding: 12px 30px; font-size: 16px;
+  }
+  .btn.ghost:active { transform: translateY(2px); box-shadow: none; }
+  .btnrow { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .bigscore { font-size: 52px; font-weight: 800; color: #fbbc04; margin: 2px 0; }
+  .statline { font-size: 16px; color: #bdc1c6; margin-bottom: 4px; }
+  .newbest { color: #34a853; font-weight: 700; font-size: 18px; margin-top: 8px; animation: pulse 0.8s infinite alternate; }
+  @keyframes pulse { from { opacity: 0.5; } to { opacity: 1; } }
+  .hint { margin-top: 16px; font-size: 13px; color: #9aa0a6; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game"></canvas>
+
+  <div id="hud">
+    <div class="card">
+      <div class="label">DISTANCE</div>
+      <div class="val" id="score">0<small> m</small></div>
+    </div>
+    <div class="card right">
+      <div class="label">BEST</div>
+      <div class="val" id="best">0<small> m</small></div>
+    </div>
+  </div>
+
+  <div id="townInfo">
+    <div id="townName">📍 Sleepy Hollow</div>
+    <div id="townLevel">TOWN 1</div>
+    <div class="progWrap"><div id="progFill"></div></div>
+  </div>
+
+  <div id="combo"></div>
+
+  <div id="banner"><div class="pill">
+    <div class="small" id="bannerSmall">TOWN CLEARED</div>
+    <div class="big" id="bannerTown">Maple Grove</div>
+    <div class="next" id="bannerNext">Next stop…</div>
+  </div></div>
+
+  <!-- Start screen -->
+  <div class="screen" id="startScreen">
+    <div class="title">🌪️ Twister Town</div>
+    <div class="subtitle">A storm-chaser's map. Guide the twister across town after town, all the way to the big city.</div>
+    <div class="panel">
+      Steer the twister down the map and <b>weave around the buildings</b>.
+      Fill the bar up top to <b>clear the town</b> and roll into the next — they get denser and denser until you reach the <b>Big City</b>.<br><br>
+      📍 Grab the <b>map pins</b> for bonus distance &amp; combos.<br>
+      🌳 Smash <b>trees &amp; cars</b> aside for bonus distance.<br>
+      💥 But clip a <b>house or city building</b> and the chase ends.<br><br>
+      <span class="key">←</span> <span class="key">→</span> or <span class="key">A</span> <span class="key">D</span> to steer &nbsp;·&nbsp; or <b>move your mouse / finger</b>
+    </div>
+    <div class="btnrow">
+      <button class="btn" id="startBtn">START THE CHASE</button>
+      <button class="btn ghost" id="rulesBtn">How to Play</button>
+    </div>
+    <div class="hint">Distance traveled = your score. How far can you get?</div>
+  </div>
+
+  <!-- Rules / How to Play screen -->
+  <div class="screen hidden" id="rulesScreen">
+    <div class="title" style="font-size:clamp(28px,6vw,46px)">How to Play</div>
+    <div class="panel" style="text-align:left; max-width:500px">
+      <b>🎯 Goal</b><br>
+      Guide the tornado down the map and fill the progress bar to <b>clear each town</b>. Towns get busier and busier all the way to the <b>Big City</b>. Your score is the <b>total distance traveled</b>.<br><br>
+      <b>🕹️ Steering</b><br>
+      <span class="key">←</span> <span class="key">→</span> or <span class="key">A</span> <span class="key">D</span>, or just move your <b>mouse / finger</b>.<br><br>
+      <b>💥 Deadly — avoid these</b><br>
+      Houses and city buildings. One hit and the chase ends.<br><br>
+      <b>🌳 Smashable — plow right through</b><br>
+      Trees and cars get flung aside in a burst of debris for <b>+bonus distance</b>.<br><br>
+      <b>📍 Map pins</b><br>
+      Grab them for bonus distance and a <b>combo multiplier</b> — collect them back-to-back to stack it up.<br><br>
+      <b>🟩 Parks &amp; water</b><br>
+      Just scenery — totally safe to drift over.
+    </div>
+    <button class="btn" id="rulesBackBtn">← Back</button>
+  </div>
+
+  <!-- Game over screen -->
+  <div class="screen hidden" id="overScreen">
+    <div class="title" style="font-size:clamp(28px,6vw,46px)">💥 Storm Over</div>
+    <div class="statline" id="reachedLine">You reached…</div>
+    <div class="bigscore" id="finalScore">0</div>
+    <div class="statline" id="townsStat">Towns cleared: 0</div>
+    <div class="statline" id="leafStat">📍 0 pins · +0m</div>
+    <div class="statline" id="smashStat">🌳 0 smashed · +0m</div>
+    <div class="newbest hidden" id="newBest">★ NEW BEST! ★</div>
+    <div class="btnrow" style="margin-top:22px">
+      <button class="btn" id="restartBtn">Chase Again</button>
+    </div>
+    <div class="btnrow" style="margin-top:12px">
+      <button class="btn ghost" id="overRulesBtn">Rules</button>
+      <button class="btn ghost" id="menuBtn">← Menu</button>
+    </div>
+    <div class="hint">Press <span class="key">Space</span> or <span class="key">Enter</span> to retry</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+
+  const scoreEl   = document.getElementById('score');
+  const bestEl    = document.getElementById('best');
+  const comboEl   = document.getElementById('combo');
+  const townNameEl  = document.getElementById('townName');
+  const townLevelEl = document.getElementById('townLevel');
+  const progFillEl  = document.getElementById('progFill');
+  const startScreen = document.getElementById('startScreen');
+  const overScreen  = document.getElementById('overScreen');
+  const finalScoreEl = document.getElementById('finalScore');
+  const townsStatEl  = document.getElementById('townsStat');
+  const leafStatEl   = document.getElementById('leafStat');
+  const reachedLineEl = document.getElementById('reachedLine');
+  const newBestEl    = document.getElementById('newBest');
+  const bannerEl     = document.getElementById('banner');
+  const bannerSmallEl = document.getElementById('bannerSmall');
+  const bannerTownEl  = document.getElementById('bannerTown');
+  const bannerNextEl  = document.getElementById('bannerNext');
+
+  const VW = 660, VH = 800;
+  let scale = 1;
+
+  function resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    scale = Math.min(w / VW, h / VH);
+    canvas.width = VW * scale;
+    canvas.height = VH * scale;
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---------------------------------------------------------------------------
+  // Color helpers (for map palette that shifts suburb -> city)
+  // ---------------------------------------------------------------------------
+  function hexRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+  function lerpC(a, b, t) {
+    const A = hexRgb(a), B = hexRgb(b);
+    return 'rgb(' + Math.round(A[0] + (B[0] - A[0]) * t) + ',' +
+                    Math.round(A[1] + (B[1] - A[1]) * t) + ',' +
+                    Math.round(A[2] + (B[2] - A[2]) * t) + ')';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Towns — sleepy village to big city
+  // ---------------------------------------------------------------------------
+  const TOWNS = [
+    { name: 'Sleepy Hollow', urban: 0.00 },
+    { name: 'Maple Grove',   urban: 0.12 },
+    { name: 'Riverside',     urban: 0.26 },
+    { name: 'Oakdale',       urban: 0.40 },
+    { name: 'Springfield',   urban: 0.55 },
+    { name: 'Metroville',    urban: 0.72 },
+    { name: 'Grand City',    urban: 0.90 },
+  ];
+  function townFor(level) {
+    if (level <= TOWNS.length) return TOWNS[level - 1];
+    return { name: 'Megapolis · Dist. ' + (level - TOWNS.length), urban: 1.0 };
+  }
+  function paletteFor(urban) {
+    return {
+      land:      lerpC('#e9efdf', '#e6e5e2', urban),   // suburban green-gray -> city gray
+      street:    '#ffffff',
+      casing:    lerpC('#dcd9d1', '#cfccc6', urban),
+      avenue:    lerpC('#fdf3d0', '#fbe9a8', urban),   // main road, soft map-yellow
+      build:     lerpC('#efe7d6', '#d4d2cd', urban),   // beige house -> gray block
+      buildEdge: lerpC('#dccfb8', '#bfbdb6', urban),
+      park:      '#c4e6ad',
+      parkEdge:  '#a9d68f',
+      water:     '#a9d4f0',
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // State
+  // ---------------------------------------------------------------------------
+  const STATE = { START: 0, PLAY: 1, OVER: 2 };
+  let state = STATE.START;
+
+  let best = parseInt(localStorage.getItem('twisterTownBest3') || '0', 10);
+  if (!isFinite(best)) best = 0;   // guard against a corrupted stored value
+  bestEl.innerHTML = best + '<small> m</small>';
+
+  const MARGIN = 30;                       // map edge margin
+  const PLAY_L = MARGIN, PLAY_R = VW - MARGIN, PLAY_W = PLAY_R - PLAY_L;
+  const TORNADO_Y = VH - 160;
+
+  // vertical map streets (decorative grid) — spread across the wider map
+  const VSTREETS = [];
+  (function () {
+    const c = VW / 2;
+    VSTREETS.push(c);
+    for (let d = 150; c - d > 10; d += 150) {
+      VSTREETS.push(c - d);
+      if (c + d < VW - 10) VSTREETS.push(c + d);
+    }
+  })();
+
+  let game = null;
+
+  function newGame() {
+    return {
+      level: 1, town: TOWNS[0], pal: paletteFor(0),
+      target: 0, baseSpeed: 0, gapW: 0, rowSpace: 0,
+      totalDist: 0, levelDist: 0, speed: 0,
+      tx: VW / 2, targetX: VW / 2, vx: 0, worldY: 0,
+      obstacles: [], leaves: [], particles: [], decor: [],
+      lastGapCenter: VW / 2,
+      spawnTimer: 0, leafTimer: 60, decorTimer: 30,
+      leafCount: 0, pinDist: 0, smashCount: 0, smashDist: 0,
+      combo: 0, comboTimer: 0,
+      shake: 0, time: 0,
+      transitioning: false, transTimer: 0, advanced: false,
+    };
+  }
+
+  function applyLevel() {
+    const g = game;
+    const t = townFor(g.level);
+    g.town = t;
+    g.pal = paletteFor(t.urban);
+    g.target    = 280 + g.level * 55;                       // shorter early towns
+    g.baseSpeed = Math.min(1.35 + g.level * 0.22, 6.5);     // slow, gentle ramp
+    g.gapW      = Math.max(260 - g.level * 9, 120);         // very wide gaps early
+    g.rowSpace  = Math.max(270 - g.level * 10, 130);        // lots of breathing room early
+    // note: g.speed is NOT snapped here — it eases toward baseSpeed (see update)
+    townNameEl.textContent = '📍 ' + t.name;
+    townLevelEl.textContent = 'TOWN ' + g.level;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Input
+  // ---------------------------------------------------------------------------
+  const keys = { left: false, right: false };
+  let usingPointer = false;
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') { keys.left = true; usingPointer = false; }
+    if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') { keys.right = true; usingPointer = false; }
+    if (e.key === ' ' || e.key === 'Enter') {
+      const rulesOpen = !document.getElementById('rulesScreen').classList.contains('hidden');
+      if (!rulesOpen && (state === STATE.START || state === STATE.OVER)) startGame();
+      e.preventDefault();
+    }
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
+    if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+  });
+
+  function pointerMove(clientX) {
+    if (state !== STATE.PLAY) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (clientX - rect.left) / scale;
+    game.targetX = Math.max(PLAY_L, Math.min(PLAY_R, x));
+    usingPointer = true;
+  }
+  canvas.addEventListener('mousemove', (e) => pointerMove(e.clientX));
+  canvas.addEventListener('touchmove', (e) => { pointerMove(e.touches[0].clientX); e.preventDefault(); }, { passive: false });
+  canvas.addEventListener('touchstart', (e) => { pointerMove(e.touches[0].clientX); }, { passive: true });
+
+  document.getElementById('startBtn').addEventListener('click', startGame);
+  document.getElementById('restartBtn').addEventListener('click', startGame);
+
+  // ---- Rules screen + menu navigation ----
+  const rulesScreen = document.getElementById('rulesScreen');
+  let rulesReturn = startScreen;   // which screen to return to from Rules
+
+  function openRules(returnTo) {
+    rulesReturn = returnTo;
+    startScreen.classList.add('hidden');
+    overScreen.classList.add('hidden');
+    rulesScreen.classList.remove('hidden');
+  }
+  function closeRules() {
+    rulesScreen.classList.add('hidden');
+    rulesReturn.classList.remove('hidden');
+  }
+  function goToMenu() {
+    state = STATE.START;
+    overScreen.classList.add('hidden');
+    rulesScreen.classList.add('hidden');
+    bannerEl.classList.remove('show');
+    startScreen.classList.remove('hidden');
+  }
+
+  document.getElementById('rulesBtn').addEventListener('click', () => openRules(startScreen));
+  document.getElementById('overRulesBtn').addEventListener('click', () => openRules(overScreen));
+  document.getElementById('rulesBackBtn').addEventListener('click', closeRules);
+  document.getElementById('menuBtn').addEventListener('click', goToMenu);
+
+  function startGame() {
+    game = newGame();
+    applyLevel();
+    state = STATE.PLAY;
+    startScreen.classList.add('hidden');
+    overScreen.classList.add('hidden');
+    comboEl.style.opacity = 0;          // clear any leftover combo pill
+    progFillEl.style.width = '0%';      // reset progress bar for the fresh run
+    showBanner('NOW ENTERING', game.town.name, 'Town 1 — fill the bar to move on');
+  }
+
+  function gameOver() {
+    state = STATE.OVER;
+    const d = Math.floor(game.totalDist);
+    reachedLineEl.textContent = 'You reached ' + game.town.name + ' —';
+    finalScoreEl.textContent = d + ' m';
+    townsStatEl.textContent = 'Towns cleared: ' + (game.level - 1);
+    leafStatEl.textContent = '📍 ' + game.leafCount + ' pins · +' + Math.round(game.pinDist) + 'm';
+    document.getElementById('smashStat').textContent =
+      '🌳 ' + game.smashCount + ' trees & cars smashed · +' + Math.round(game.smashDist) + 'm';
+    if (d > best) {
+      best = d;
+      localStorage.setItem('twisterTownBest3', String(best));
+      bestEl.innerHTML = best + '<small> m</small>';
+      newBestEl.classList.remove('hidden');
+    } else {
+      newBestEl.classList.add('hidden');
+    }
+    overScreen.classList.remove('hidden');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Banner
+  // ---------------------------------------------------------------------------
+  let bannerHideAt = 0;
+  function showBanner(small, town, next) {
+    bannerSmallEl.textContent = small;
+    bannerTownEl.textContent = town;
+    bannerNextEl.textContent = next;
+    bannerEl.classList.add('show');
+    bannerHideAt = game.time + 120;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Spawning
+  // ---------------------------------------------------------------------------
+  const ACCENTS = ['#f3c9c0', '#cfe3c0', '#cdd9f0', '#f0e3b8', '#e3cdf0', '#f8d6e4'];
+
+  function pickType(urban) {
+    const r = Math.random();
+    if (urban < 0.3)  return r < 0.6 ? 'house' : (r < 0.85 ? 'tree' : 'car');
+    if (urban < 0.6)  return r < 0.4 ? 'house' : (r < 0.65 ? 'building' : (r < 0.85 ? 'car' : 'tree'));
+    return r < 0.68 ? 'building' : (r < 0.88 ? 'car' : 'house');
+  }
+
+  function spawnRow() {
+    const g = game;
+    const urban = g.town.urban;
+    const gapW = g.gapW;
+
+    // REACHABILITY CONSTRAINT: the new gap may only shift sideways a limited
+    // amount from the previous gap, so consecutive gaps always overlap into a
+    // continuous corridor that's steerable with the arrow keys (not just mouse).
+    const maxShift = gapW * 0.55;
+    let gapCenter = g.lastGapCenter + (Math.random() * 2 - 1) * maxShift;
+    gapCenter = Math.max(PLAY_L + 45, Math.min(PLAY_R - 45, gapCenter));
+    g.lastGapCenter = gapCenter;
+
+    let x = PLAY_L;
+    while (x < PLAY_R) {
+      const type = pickType(urban);
+      let ow, oh;
+      if (type === 'house') { ow = 44 + Math.random() * 26; oh = 44 + Math.random() * 26; }
+      else if (type === 'tree') { ow = oh = 30 + Math.random() * 14; }
+      else if (type === 'car') { ow = 26; oh = 46; }
+      else { ow = 48 + Math.random() * 34; oh = 60 + urban * 70 + Math.random() * 50; }  // building
+      // test the gap against the REAL footprint width (ow), not a placeholder,
+      // so houses/buildings can't poke into the steerable corridor.
+      const inGap = (x + ow > gapCenter - gapW / 2) && (x < gapCenter + gapW / 2);
+      if (!inGap && x + ow <= PLAY_R) {
+        const seed = (Math.random() * 1000) | 0;
+        g.obstacles.push({
+          type, x, y: -oh - 10, w: ow, h: oh, seed,
+          accent: (type !== 'tree' && type !== 'car' && Math.random() < 0.22) ? ACCENTS[seed % ACCENTS.length] : null,
+          carCol: ['#5f6368', '#8ab4f8', '#f28b82', '#fdd663', '#ffffff'][seed % 5],
+          hitDanger: false,
+        });
+        x += ow + 14 + Math.random() * 22;
+      } else {
+        x += 28;
+      }
+    }
+  }
+
+  function spawnLeaf() {
+    game.leaves.push({
+      x: PLAY_L + 20 + Math.random() * (PLAY_W - 40),
+      y: -20, r: 12, spin: Math.random() * Math.PI * 2,
+    });
+  }
+
+  function spawnDecor() {
+    const g = game;
+    const r = Math.random();
+    const type = r < 0.65 ? 'park' : 'water';
+    const w = 70 + Math.random() * 150;
+    const h = 90 + Math.random() * 110;
+    g.decor.push({ type, x: Math.random() * (VW - w), y: -h - 10, w, h });
+  }
+
+  function addDebris(x, y, color, n, spd) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = spd * (0.4 + Math.random());
+      game.particles.push({
+        x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+        life: 1, decay: 0.02 + Math.random() * 0.03,
+        size: 2 + Math.random() * 4, color,
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Update
+  // ---------------------------------------------------------------------------
+  function update() {
+    if (state !== STATE.PLAY) return;
+    const g = game;
+    g.time++;
+
+    if (bannerEl.classList.contains('show') && g.time > bannerHideAt && !g.transitioning) {
+      bannerEl.classList.remove('show');
+    }
+
+    if (g.transitioning) {
+      g.transTimer--;
+      g.speed += (1.2 - g.speed) * 0.06;
+      g.worldY += g.speed;
+      moveAndCull(g.obstacles, g.speed);
+      moveAndCull(g.decor, g.speed);
+      g.leaves.length = 0;
+      stepParticles();
+      if (!g.advanced && g.transTimer < 70) {
+        g.advanced = true;
+        g.level++; g.levelDist = 0; g.obstacles.length = 0;
+        applyLevel();
+        showBanner('NOW ENTERING', g.town.name, 'Town ' + g.level + ' — busier roads ahead');
+      }
+      if (g.transTimer <= 0) { g.transitioning = false; g.advanced = false; }  // speed eases back up in normal play
+      if (g.shake > 0) g.shake *= 0.88;
+      return;
+    }
+
+    // ease speed toward the town's cruising pace so each town starts gently
+    const cruise = g.baseSpeed + g.levelDist * 0.0006;
+    g.speed += (cruise - g.speed) * 0.03;
+    const adv = g.speed * 0.18;
+    g.totalDist += adv; g.levelDist += adv; g.worldY += g.speed;
+
+    if (g.levelDist >= g.target) {
+      g.transitioning = true; g.transTimer = 150;
+      showBanner('TOWN CLEARED', g.town.name, 'Rolling on…');
+      progFillEl.style.width = '100%';
+      return;
+    }
+
+    if (usingPointer) {
+      g.tx += (g.targetX - g.tx) * 0.2;
+    } else {
+      // direct, momentum-free steering: moves only while held, stops on release,
+      // so a quick tap is a small nudge instead of a long coasting slide.
+      const moveSpeed = 2.5;
+      const dir = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+      g.tx += dir * moveSpeed;
+      g.vx = 0;
+    }
+    if (g.tx < PLAY_L) { g.tx = PLAY_L; g.vx = 0; }
+    if (g.tx > PLAY_R) { g.tx = PLAY_R; g.vx = 0; }
+
+    g.spawnTimer -= g.speed;
+    if (g.spawnTimer <= 0) { spawnRow(); g.spawnTimer = g.rowSpace; }
+    g.leafTimer -= g.speed;
+    if (g.leafTimer <= 0) { spawnLeaf(); g.leafTimer = 90 + Math.random() * 80; }
+    g.decorTimer -= g.speed;
+    if (g.decorTimer <= 0) { spawnDecor(); g.decorTimer = 140 + Math.random() * 120; }
+
+    moveAndCull(g.decor, g.speed);
+
+    const tRadius = 15;          // forgiving hitbox
+    const tx = g.tx, ty = TORNADO_Y;
+
+    for (let i = g.obstacles.length - 1; i >= 0; i--) {
+      const o = g.obstacles[i];
+      o.y += g.speed;
+      const cx = Math.max(o.x, Math.min(tx, o.x + o.w));
+      const cy = Math.max(o.y, Math.min(ty, o.y + o.h));
+      const dx = tx - cx, dy = ty - cy;
+      const distSq = dx * dx + dy * dy;
+      if (distSq < tRadius * tRadius) {
+        if (o.type === 'tree' || o.type === 'car') { smash(o); g.obstacles.splice(i, 1); continue; }
+        crash(o); return;   // houses & buildings are deadly
+      }
+      // only deadly things glow as a warning
+      o.hitDanger = ((o.type === 'house' || o.type === 'building') &&
+                     distSq < (tRadius + 24) * (tRadius + 24) && o.y < ty && o.y + o.h > ty - 60);
+      if (o.y > VH + 80) g.obstacles.splice(i, 1);
+    }
+
+    for (let i = g.leaves.length - 1; i >= 0; i--) {
+      const lf = g.leaves[i];
+      lf.y += g.speed; lf.spin += 0.12;
+      const dx = tx - lf.x, dy = ty - lf.y;
+      if (dx * dx + dy * dy < (tRadius + lf.r) * (tRadius + lf.r)) {
+        g.leafCount++; g.combo++; g.comboTimer = 90;
+        const bonus = 5 * Math.min(g.combo, 8);
+        g.totalDist += bonus; g.levelDist += bonus; g.pinDist += bonus;
+        addDebris(lf.x, lf.y, '#ea4335', 14, 4);
+        showCombo(g.combo, bonus);
+        g.leaves.splice(i, 1);
+        continue;
+      }
+      if (lf.y > VH + 30) g.leaves.splice(i, 1);
+    }
+
+    if (g.comboTimer > 0) { g.comboTimer--; if (g.comboTimer === 0) { g.combo = 0; comboEl.style.opacity = 0; } }
+    if (g.time % 2 === 0) addDebris(tx + (Math.random() - 0.5) * 28, ty + 10, '#cfd6e4', 1, 1.5);
+
+    stepParticles();
+    if (g.shake > 0) g.shake *= 0.88;
+
+    scoreEl.innerHTML = Math.floor(g.totalDist) + '<small> m</small>';
+    progFillEl.style.width = Math.min(100, (g.levelDist / g.target) * 100) + '%';
+  }
+
+  function moveAndCull(arr, sp) {
+    for (let i = arr.length - 1; i >= 0; i--) {
+      arr[i].y += sp;
+      if (arr[i].y > VH + 90) arr.splice(i, 1);
+    }
+  }
+  function stepParticles() {
+    const g = game;
+    for (let i = g.particles.length - 1; i >= 0; i--) {
+      const p = g.particles[i];
+      p.x += p.vx; p.y += p.vy + g.speed * 0.3;
+      p.vx *= 0.95; p.vy *= 0.95; p.life -= p.decay;
+      if (p.life <= 0) g.particles.splice(i, 1);
+    }
+  }
+  function crash(o) {
+    const g = game;
+    g.shake = 26;
+    addDebris(g.tx, TORNADO_Y, '#9aa0a6', 40, 7);
+    addDebris(g.tx, TORNADO_Y, '#fff', 20, 5);
+    gameOver();
+  }
+
+  // trees & cars get flung aside for bonus distance
+  function smash(o) {
+    const g = game;
+    const col = o.type === 'tree' ? '#7cb35e' : o.carCol;
+    addDebris(o.x + o.w / 2, o.y + o.h / 2, col, 16, 5.5);
+    const bonus = 8;
+    g.totalDist += bonus; g.levelDist += bonus;
+    g.smashCount++; g.smashDist += bonus;
+    g.shake = Math.max(g.shake, 6);
+  }
+  function showCombo(combo, bonus) {
+    if (combo >= 2) { comboEl.textContent = '📍 x' + combo + '  +' + bonus + 'm'; comboEl.style.opacity = 1; }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Drawing — top-down map style
+  // ---------------------------------------------------------------------------
+  function draw() {
+    const g = game;
+    ctx.save();
+    let sx = 0, sy = 0;
+    if (g && g.shake > 0.5) { sx = (Math.random() - 0.5) * g.shake; sy = (Math.random() - 0.5) * g.shake; }
+    ctx.translate(sx, sy);
+    if (g && g.shake > 0) g.shake *= 0.88;   // decay here too, so crash shake settles on the Game Over screen
+
+    drawMap(g);
+
+    if (g) {
+      for (const lf of g.leaves) drawPin(lf);
+      for (const o of g.obstacles) drawFootprint(o, g.pal);
+      for (const p of g.particles) {
+        ctx.globalAlpha = Math.max(0, p.life);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+      }
+      ctx.globalAlpha = 1;
+      if (state === STATE.PLAY) drawTornado(g.tx, TORNADO_Y, g.time);
+    }
+
+    drawVignette(g);
+    ctx.restore();
+  }
+
+  function drawMap(g) {
+    const pal = g ? g.pal : paletteFor(0);
+    // land
+    ctx.fillStyle = pal.land;
+    ctx.fillRect(0, 0, VW, VH);
+
+    // decor map features (parks / water blocks)
+    if (g) {
+      for (const d of g.decor) {
+        ctx.fillStyle = d.type === 'park' ? pal.park : pal.water;
+        roundRect(d.x, d.y, d.w, d.h, 14); ctx.fill();
+        ctx.strokeStyle = d.type === 'park' ? pal.parkEdge : '#8fc4e6';
+        ctx.lineWidth = 2; ctx.stroke();
+      }
+    }
+
+    const scroll = g ? (g.worldY % 150) : 0;
+    // horizontal cross-streets (scrolling)
+    for (let y = -150 + scroll; y < VH + 150; y += 150) {
+      drawStreet(0, y, VW, 22, pal, false);
+    }
+    // vertical streets (fixed)
+    for (const vx of VSTREETS) drawStreet(vx - 11, 0, 22, VH, pal, true, vx === VW * 0.5);
+  }
+
+  // a map road with casing + (optional) dashed centerline
+  function drawStreet(x, y, w, h, pal, vertical, isAvenue) {
+    ctx.fillStyle = pal.casing;
+    ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+    ctx.fillStyle = isAvenue ? pal.avenue : pal.street;
+    ctx.fillRect(x, y, w, h);
+    // dashed centerline
+    ctx.fillStyle = 'rgba(150,150,150,0.5)';
+    if (vertical) {
+      const cx = x + w / 2;
+      const off = (game ? game.worldY : 0) % 26;
+      for (let yy = -26 + off; yy < VH + 26; yy += 26) ctx.fillRect(cx - 1, yy, 2, 13);
+    } else {
+      const cy = y + h / 2;
+      for (let xx = 0; xx < VW; xx += 26) ctx.fillRect(xx, cy - 1, 13, 2);
+    }
+  }
+
+  function drawFootprint(o, pal) {
+    ctx.save();
+    if (o.hitDanger) { ctx.shadowColor = 'rgba(234,67,53,0.85)'; ctx.shadowBlur = 16; }
+
+    if (o.type === 'tree') {
+      ctx.fillStyle = 'rgba(0,0,0,0.10)';
+      ctx.beginPath(); ctx.ellipse(o.x + o.w / 2 + 2, o.y + o.h / 2 + 3, o.w / 2, o.h / 2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#9ccc7f';
+      ctx.beginPath(); ctx.arc(o.x + o.w / 2, o.y + o.h / 2, o.w / 2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#7cb35e';
+      ctx.beginPath(); ctx.arc(o.x + o.w / 2, o.y + o.h / 2, o.w / 2 * 0.6, 0, Math.PI * 2); ctx.fill();
+      ctx.restore(); return;
+    }
+
+    if (o.type === 'car') {
+      ctx.fillStyle = 'rgba(0,0,0,0.12)'; roundRect(o.x + 2, o.y + 3, o.w, o.h, 6); ctx.fill();
+      ctx.fillStyle = o.carCol; roundRect(o.x, o.y, o.w, o.h, 6); ctx.fill();
+      ctx.fillStyle = 'rgba(20,25,35,0.55)';
+      roundRect(o.x + 3, o.y + 6, o.w - 6, 12, 3); ctx.fill();
+      roundRect(o.x + 3, o.y + o.h - 18, o.w - 6, 12, 3); ctx.fill();
+      ctx.restore(); return;
+    }
+
+    // ---- DEADLY structure (house or building) ----
+    ctx.fillStyle = 'rgba(0,0,0,0.16)';
+    roundRect(o.x + 2, o.y + 3, o.w, o.h, 4); ctx.fill();
+
+    ctx.fillStyle = pal.build;
+    roundRect(o.x, o.y, o.w, o.h, 4); ctx.fill();
+
+    if (o.type === 'building') {
+      // window grid -> clearly a tower
+      const cols = Math.max(2, Math.floor(o.w / 16));
+      const rows = Math.max(2, Math.floor(o.h / 18));
+      const cw = o.w / cols, ch = o.h / rows;
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+        const lit = ((r * 7 + c * 13 + o.seed) % 3) === 0;
+        ctx.fillStyle = lit ? 'rgba(130,118,96,0.5)' : 'rgba(95,95,108,0.30)';
+        ctx.fillRect(o.x + c * cw + 3, o.y + r * ch + 3, cw - 6, ch - 6);
+      }
+    } else {
+      // house: hip-roof lines so it clearly reads as a home
+      ctx.strokeStyle = 'rgba(120,50,35,0.45)'; ctx.lineWidth = 1.5;
+      const cx0 = o.x + o.w / 2, midy = o.y + o.h / 2;
+      ctx.beginPath();
+      ctx.moveTo(o.x + 3, o.y + 3); ctx.lineTo(cx0, midy); ctx.lineTo(o.x + o.w - 3, o.y + 3);
+      ctx.moveTo(o.x + 3, o.y + o.h - 3); ctx.lineTo(cx0, midy); ctx.lineTo(o.x + o.w - 3, o.y + o.h - 3);
+      ctx.stroke();
+    }
+
+    // RED danger border — the universal "don't hit me" signal (always on)
+    ctx.strokeStyle = o.hitDanger ? '#ff1744' : 'rgba(208,42,42,0.92)';
+    ctx.lineWidth = o.hitDanger ? 3.5 : 2.5;
+    roundRect(o.x, o.y, o.w, o.h, 4); ctx.stroke();
+
+    ctx.restore();
+  }
+
+  // map location pin (collectible)
+  function drawPin(lf) {
+    ctx.save();
+    const bob = Math.sin(lf.spin) * 2;
+    ctx.translate(lf.x, lf.y + bob);
+    // shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.beginPath(); ctx.ellipse(0, lf.r + 2, 6, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+    // teardrop
+    ctx.fillStyle = '#ea4335';
+    ctx.beginPath();
+    ctx.arc(0, -lf.r * 0.3, lf.r * 0.75, Math.PI, 0, false);
+    ctx.lineTo(0, lf.r);
+    ctx.closePath();
+    ctx.fill();
+    // white hole
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(0, -lf.r * 0.3, lf.r * 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawTornado(x, y, t) {
+    ctx.save();
+    // soft radar ring (map-app vibe)
+    ctx.strokeStyle = 'rgba(26,115,232,0.25)'; ctx.lineWidth = 2;
+    const pr = 28 + (t % 40);
+    ctx.globalAlpha = Math.max(0, 1 - (t % 40) / 40);
+    ctx.beginPath(); ctx.arc(x, y, pr, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath(); ctx.ellipse(x, y + 30, 36, 12, 0, 0, Math.PI * 2); ctx.fill();
+
+    const layers = 13;
+    for (let i = 0; i < layers; i++) {
+      const f = i / (layers - 1);
+      const ly = y + 26 - f * 150;
+      const wob = Math.sin(t * 0.15 + i * 0.7) * (6 + f * 10);
+      const rw = 8 + f * 38, rh = 7 + f * 7;
+      const shade = 150 - f * 40;
+      ctx.fillStyle = `rgba(${shade},${shade},${shade + 10},${0.85 - f * 0.25})`;
+      ctx.beginPath(); ctx.ellipse(x + wob, ly, rw, rh, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    for (let i = 0; i < 10; i++) {
+      const a = t * 0.2 + i * (Math.PI * 2 / 10);
+      const f = (i % 5) / 5;
+      const ly = y + 20 - f * 130;
+      const rad = 14 + f * 34;
+      ctx.fillStyle = 'rgba(90,80,70,0.7)';
+      ctx.fillRect(x + Math.cos(a) * rad - 2, ly + Math.sin(a) * (rad * 0.3) - 2, 4, 4);
+    }
+    ctx.fillStyle = 'rgba(200,205,220,0.5)';
+    ctx.beginPath(); ctx.ellipse(x + Math.sin(t * 0.15 + 9) * 16, y - 124, 46, 14, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawVignette(g) {
+    const u = g ? g.town.urban : 0;
+    const grd = ctx.createRadialGradient(VW / 2, VH / 2, VH * 0.32, VW / 2, VH / 2, VH * 0.78);
+    grd.addColorStop(0, 'rgba(0,0,0,0)');
+    grd.addColorStop(1, `rgba(30,33,45,${0.22 + u * 0.22})`);
+    ctx.fillStyle = grd; ctx.fillRect(0, 0, VW, VH);
+  }
+
+  function roundRect(x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function loop() { update(); draw(); requestAnimationFrame(loop); }
+
+  game = newGame();
+  applyLevel();
+  state = STATE.START;
+  loop();
+})();
+</script>
+</body>
+</html>

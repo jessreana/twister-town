@@ -1,0 +1,4 @@
+# Netlify config — static site, no build step. Serves index.html at the root.
+[build]
+  publish = "."
+  command = ""

@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(open *)",
+      "Bash(npx --no-install playwright --version)",
+      "Bash(npm ls *)",
+      "Read(//private/tmp/twister-verify/**)",
+      "Bash(npm i *)",
+      "Bash(git --version)",
+      "Bash(gh --version)",
+      "Bash(gh auth *)",
+      "Bash(netlify --version)",
+      "Bash(firebase --version)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git -c 'user.name=Jessica McCadden' -c user.email=jessica.mccadden@gmail.com commit -q -m 'Twister Town game + quick fixes + deploy configs *)"
+    ]
+  }
+}
